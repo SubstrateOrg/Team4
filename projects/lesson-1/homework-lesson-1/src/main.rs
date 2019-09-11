@@ -15,9 +15,9 @@ fn main() {
 		name: "Substrate Node",
 		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
-		executable_name: "homework-1",
+		executable_name: "homework-lesson-1",
 		author: "CherryLiang",
-		description: "homework-1",
+		description: "homework-lesson-1",
 		support_url: "support.anonymous.an",
 	};
 

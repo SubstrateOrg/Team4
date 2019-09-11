@@ -94,8 +94,8 @@ pub mod opaque {
 
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("homework-1"),
-	impl_name: create_runtime_str!("homework-1"),
+	spec_name: create_runtime_str!("homework-lesson-1"),
+	impl_name: create_runtime_str!("homework-lesson-1"),
 	authoring_version: 3,
 	spec_version: 4,
 	impl_version: 4,
@@ -235,6 +235,7 @@ impl balances::Trait for Runtime {
 	type OnNewAccount = Indices;
 	/// The ubiquitous event type.
 	type Event = Event;
+
 	type TransactionPayment = ();
 	type DustRemoval = ();
 	type TransferPayment = ();
@@ -267,7 +268,7 @@ construct_runtime!(
 		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		Indices: indices::{default, Config<T>},
-		Balances: balances::{default, Error},
+		Balances: balances,
 		Sudo: sudo,
 		// Used for the module template in `./template.rs`
 		TemplateModule: template::{Module, Call, Storage, Event<T>},

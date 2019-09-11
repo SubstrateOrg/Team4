@@ -1,5 +1,5 @@
 use primitives::{Pair, Public};
-use homework_1_runtime::{
+use homework_lesson_1_runtime::{
 	AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
 	SudoConfig, IndicesConfig, SystemConfig, WASM_BINARY, 
 };
