@@ -6,8 +6,10 @@ use system::ensure_signed;
 pub trait Trait: system::Trait {
 }
 
+type KittyHash = [u8; 16];
+
 #[derive(Encode, Decode, Default)]
-pub struct Kitty(pub [u8; 16]);
+pub struct Kitty(pub KittyHash);
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Kitties {
@@ -24,12 +26,45 @@ decl_module! {
 		pub fn create(origin) {
 			let sender = ensure_signed(origin)?;
 			let count = Self::kitties_count();
+
 			if count == u32::max_value() {
 				return Err("Kitties count overflow");
 			}
-			let payload = (<system::Module<T>>::random_seed(), sender, <system::Module<T>>::extrinsic_index(), <system::Module<T>>::block_number());
+
+			let payload = (
+				<system::Module<T>>::random_seed(),
+				sender, 
+				<system::Module<T>>::extrinsic_index(),
+				<system::Module<T>>::block_number()
+			);
+			/// do a Blake2 128-bit hash encoded and return result `[u8; 16]`.
 			let dna = payload.using_encoded(blake2_128);
 			let kitty = Kitty(dna);
+
+			Kitties::insert(count, kitty);
+			KittiesCount::put(count + 1);
+		}
+
+		pub fn create_from(origin, f_kitty: KittyHash, m_kitty: KittyHash) {
+			let sender = ensure_signed(origin)?;
+			let count = Self::kitties_count();
+
+			if count == u32::max_value() {
+				return Err("Kitties count overflow");
+			}
+
+			let payload = (
+				<system::Module<T>>::random_seed(),
+				sender,
+				f_kitty,
+				m_kitty,
+				<system::Module<T>>::extrinsic_index(),
+				<system::Module<T>>::block_number()
+			);
+			/// do a Blake2 128-bit hash encoded and return result `[u8; 16]`.
+			let dna = payload.using_encoded(blake2_128);
+			let kitty = Kitty(dna);
+
 			Kitties::insert(count, kitty);
 			KittiesCount::put(count + 1);
 		}
