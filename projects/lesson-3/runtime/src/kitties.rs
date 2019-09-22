@@ -1,4 +1,4 @@
-use support::{decl_module, decl_storage, StorageValue, StorageMap};
+use support::{decl_module, decl_storage, StorageValue, StorageMap, ensure};
 use codec::{Encode, Decode};
 use runtime_io::blake2_128;
 use system::ensure_signed;
@@ -43,7 +43,7 @@ decl_module! {
 			KittiesCount::put(count + 1);
 		}
 
-		pub fn create_from(origin, f_kitty: [u8; 16], m_kitty: [u8; 16]) {
+		pub fn create_from(origin, f_kitty_id: u32, m_kitty_id: u32) {
 			let sender = ensure_signed(origin)?;
 			let count = Self::kitties_count();
 
@@ -51,11 +51,14 @@ decl_module! {
 				return Err("Kitties count overflow");
 			}
 
+			ensure!(<Kitties>::exists(f_kitty_id), "f_kitty id doesn't exist");
+			ensure!(<Kitties>::exists(m_kitty_id), "m_kitty id doesn't exist");
+
 			let payload = (
 				<system::Module<T>>::random_seed(),
 				sender,
-				f_kitty,
-				m_kitty,
+				Self::kitty(f_kitty_id),
+				Self::kitty(m_kitty_id),
 				<system::Module<T>>::extrinsic_index(),
 				<system::Module<T>>::block_number()
 			);
