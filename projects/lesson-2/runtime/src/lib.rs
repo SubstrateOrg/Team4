@@ -259,7 +259,9 @@ impl template::Trait for Runtime {
 	type Event = Event;
 }
 
-//TODO: add trait 
+impl cryptoKitties::Trait for Runtime {
+
+}
 
 construct_runtime!(
 	pub enum Runtime where
@@ -276,7 +278,7 @@ construct_runtime!(
 		Sudo: sudo,
 		// Used for the module template in `./template.rs`
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
-		CryptoKitties: cryptoKitties::{Module,Call,Storage,Event<T>}
+		CryptoKitties: cryptoKitties::{Module,Call,Storage},
 	}
 );
 
