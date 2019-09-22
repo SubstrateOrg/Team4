@@ -63,6 +63,8 @@ pub type DigestItem = generic::DigestItem<Hash>;
 
 /// Used for the module template in `./template.rs`
 mod template;
+
+/// Used for the module kitties in `./kitties.rs`
 mod kitties;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
@@ -209,7 +211,7 @@ impl indices::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: u64 = 5000;
+	pub const MinimumPeriod: u64 = 1000;
 }
 
 impl timestamp::Trait for Runtime {
@@ -258,7 +260,6 @@ impl template::Trait for Runtime {
 }
 
 impl kitties::Trait for Runtime {
-
 }
 
 construct_runtime!(
@@ -276,7 +277,8 @@ construct_runtime!(
 		Sudo: sudo,
 		// Used for the module template in `./template.rs`
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
-		KittiesModule: kitties::{Module, Call, Storage},
+		// Substrate Kitties module
+		Kitties: kitties::{Module, Storage, Call},
 	}
 );
 
