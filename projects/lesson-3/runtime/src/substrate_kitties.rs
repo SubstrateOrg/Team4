@@ -133,6 +133,7 @@ decl_module! {
             Ok(())
         }
 
+		//繁殖小猫
         fn breed_kitty(origin,kitty_id_1: T::Hash,kitty_id_2: T::Hash) -> Result {
         	let sender = ensure_signed(origin)?;
         	let kitty_1 = Self::kitty(kitty_id_1);
