@@ -6,10 +6,8 @@ use system::ensure_signed;
 pub trait Trait: system::Trait {
 }
 
-type KittyHash = [u8; 16];
-
 #[derive(Encode, Decode, Default)]
-pub struct Kitty(pub KittyHash);
+pub struct Kitty(pub [u8; 16]);
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Kitties {
@@ -45,7 +43,7 @@ decl_module! {
 			KittiesCount::put(count + 1);
 		}
 
-		pub fn create_from(origin, f_kitty: KittyHash, m_kitty: KittyHash) {
+		pub fn create_from(origin, f_kitty: [u8; 16], m_kitty: [u8; 16]) {
 			let sender = ensure_signed(origin)?;
 			let count = Self::kitties_count();
 
