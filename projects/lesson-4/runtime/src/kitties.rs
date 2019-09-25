@@ -49,6 +49,28 @@ decl_module! {
 
 			Self::do_breed(sender, kitty_id_1, kitty_id_2)?;
 		}
+
+		/// transfer kitties
+		pub fn transfer(origin, owned_kitty_id: T::KittyIndex, to_owner: T::AccountId) {
+			let sender = ensure_signed(origin)?;
+
+			let owned_kitties_count = Self::owned_kitties_count(sender.clone());
+			if (owned_kitty_id >= owned_kitties_count) {
+				return Err("kitty id excess the amount of owner's kitties");
+			}
+
+			let owned_kitty_index = (sender.clone(), owned_kitty_id);
+			let kitty_id = Self::owned_kitties(owned_kitty_index.clone());
+
+			// remove kitty from the current owner
+			<OwnedKitties<T>>::remove(owned_kitty_index);
+			<OwnedKittiesCount<T>>::insert(sender, owned_kitties_count - 1.into());
+
+			// add kityy to the next owner
+			let to_owned_kitties_count = Self::owned_kitties_count(to_owner.clone());
+			<OwnedKitties<T>>::insert((to_owner.clone(), to_owned_kitties_count), kitty_id);
+			<OwnedKittiesCount<T>>::insert(to_owner, to_owned_kitties_count + 1.into());
+		}
 	}
 }
 
