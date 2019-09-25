@@ -58,12 +58,17 @@ fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
 	// selector.map_bits(|bit, index| if (bit == 1) { dna1 & (1 << index) } else { dna2 & (1 << index) })
 	// 注意 map_bits这个方法不存在。只要能达到同样效果，不局限算法
 	// 测试数据：dna1 = 0b11110000, dna2 = 0b11001100, selector = 0b10101010, 返回值 0b11100100
-	return dna1;
+	dna1 & selector | dna2 & !selector
 }
 
 impl<T: Trait> Module<T> {
 	fn random_value(sender: &T::AccountId) -> [u8; 16] {
-		let payload = (<system::Module<T>>::random_seed(), sender, <system::Module<T>>::extrinsic_index(), <system::Module<T>>::block_number());
+		let payload = (
+			<system::Module<T>>::random_seed(), 
+			sender, 
+			<system::Module<T>>::extrinsic_index(), 
+			<system::Module<T>>::block_number()
+		);
 		payload.using_encoded(blake2_128)
 	}
 
