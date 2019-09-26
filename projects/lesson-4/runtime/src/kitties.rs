@@ -34,10 +34,7 @@ decl_module! {
 
 			// 作业：重构create方法，避免重复代码
 
-			let kitty_id = Self::kitties_count();
-			if kitty_id == T::KittyIndex::max_value() {
-				return Err("Kitties count overflow");
-			}
+			let kitty_id = Self::next_kitty_id()?;
 
 			// Generate a random 128bit value
 			let payload = (<system::Module<T>>::random_seed(), &sender, <system::Module<T>>::extrinsic_index(), <system::Module<T>>::block_number());
@@ -45,13 +42,9 @@ decl_module! {
 
 			// Create and store kitty
 			let kitty = Kitty(dna);
-			<Kitties<T>>::insert(kitty_id, kitty);
-			<KittiesCount<T>>::put(kitty_id + 1.into());
 
 			// Store the ownership information
-			let user_kitties_id = Self::owned_kitties_count(&sender);
-			<OwnedKitties<T>>::insert((sender.clone(), user_kitties_id), kitty_id);
-			<OwnedKittiesCount<T>>::insert(sender, user_kitties_id + 1.into());
+			Self::insert_kitty(sender, kitty_id, kitty);
 		}
 
 		/// Breed kitties
@@ -59,6 +52,22 @@ decl_module! {
 			let sender = ensure_signed(origin)?;
 
 			Self::do_breed(sender, kitty_id_1, kitty_id_2)?;
+		}
+
+		pub fn transfer_kitty(origin, kitty_id: T::KittyIndex, new_owner: T::AccountId){
+			let sender = ensure_signed(origin)?;
+
+			// Check whether there is exsiting keitty with current owner
+			let kitty = Self::kitty(kitty_id);
+
+			// Do the transfer
+			// - current owner remove the cat
+			// - new owner insert one more cat into storage
+			Self::remove_kitty_from_owner(sender, kitty_id);
+			// Store the ownership information
+			let new_owned_kitties_count = Self::owned_kitties_count(new_owner.clone());
+			<OwnedKitties<T>>::insert((new_owner.clone(), new_owned_kitties_count), kitty_id);
+			<OwnedKittiesCount<T>>::insert(new_owner, new_owned_kitties_count + 1.into());
 		}
 	}
 }
@@ -69,7 +78,7 @@ fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
 	// selector.map_bits(|bit, index| if (bit == 1) { dna1 & (1 << index) } else { dna2 & (1 << index) })
 	// 注意 map_bits这个方法不存在。只要能达到同样效果，不局限算法
 	// 测试数据：dna1 = 0b11110000, dna2 = 0b11001100, selector = 0b10101010, 返回值 0b11100100
-	return dna1;
+	return dna1 & selector | dna2 & !selector;
 }
 
 impl<T: Trait> Module<T> {
@@ -86,6 +95,12 @@ impl<T: Trait> Module<T> {
 		Ok(kitty_id)
 	}
 
+	fn remove_kitty_from_owner(owner: T::AccountId, kitty_id: T::KittyIndex) {
+		let owned_kitties_count = Self::owned_kitties_count(owner.clone());
+		<OwnedKitties<T>>::remove((owner.clone(),kitty_id));
+		<OwnedKittiesCount<T>>::insert(owner.clone(), owned_kitties_count - 1.into());
+	}
+
 	fn insert_kitty(owner: T::AccountId, kitty_id: T::KittyIndex, kitty: Kitty) {
 		// Create and store kitty
 		<Kitties<T>>::insert(kitty_id, kitty);
@@ -94,7 +109,7 @@ impl<T: Trait> Module<T> {
 		// Store the ownership information
 		let user_kitties_id = Self::owned_kitties_count(owner.clone());
 		<OwnedKitties<T>>::insert((owner.clone(), user_kitties_id), kitty_id);
-		<OwnedKittiesCount<T>>::insert(owner, user_kitties_id + 1.into());
+		<OwnedKittiesCount<T>>::insert(owner.clone(), user_kitties_id + 1.into());
 	}
 
 	fn do_breed(sender: T::AccountId, kitty_id_1: T::KittyIndex, kitty_id_2: T::KittyIndex) -> Result {
