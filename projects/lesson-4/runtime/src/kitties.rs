@@ -45,13 +45,7 @@ decl_module! {
 
 			// Create and store kitty
 			let kitty = Kitty(dna);
-			<Kitties<T>>::insert(kitty_id, kitty);
-			<KittiesCount<T>>::put(kitty_id + 1.into());
-
-			// Store the ownership information
-			let user_kitties_id = Self::owned_kitties_count(&sender);
-			<OwnedKitties<T>>::insert((sender.clone(), user_kitties_id), kitty_id);
-			<OwnedKittiesCount<T>>::insert(sender, user_kitties_id + 1.into());
+			Self::insert_kitty(&sender, kitty_id, kitty);
 		}
 
 		/// Breed kitties
@@ -69,7 +63,7 @@ fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
 	// selector.map_bits(|bit, index| if (bit == 1) { dna1 & (1 << index) } else { dna2 & (1 << index) })
 	// 注意 map_bits这个方法不存在。只要能达到同样效果，不局限算法
 	// 测试数据：dna1 = 0b11110000, dna2 = 0b11001100, selector = 0b10101010, 返回值 0b11100100
-	return dna1;
+	((selector & dna1) | (!selector & dna2))
 }
 
 impl<T: Trait> Module<T> {
@@ -89,12 +83,14 @@ impl<T: Trait> Module<T> {
 	fn insert_kitty(owner: T::AccountId, kitty_id: T::KittyIndex, kitty: Kitty) {
 		// Create and store kitty
 		<Kitties<T>>::insert(kitty_id, kitty);
-		<KittiesCount<T>>::put(kitty_id + 1.into());
+		<KittiesCount<T>>::put(kitty_id + One::one());
+		<KittyOwners<T>>::insert(kitty_id, owner.clone());
 
-		// Store the ownership information
-		let user_kitties_id = Self::owned_kitties_count(owner.clone());
-		<OwnedKitties<T>>::insert((owner.clone(), user_kitties_id), kitty_id);
-		<OwnedKittiesCount<T>>::insert(owner, user_kitties_id + 1.into());
+		Self::insert_owned_kitty(owner, kitty_id);
+	}
+
+	fn insert_owned_kitty(owner: &T::AccountId, kitty_id: T::KittyIndex) {
+		<OwnedKittiesList<T>>::append(owner, kitty_id);
 	}
 
 	fn do_breed(sender: T::AccountId, kitty_id_1: T::KittyIndex, kitty_id_2: T::KittyIndex) -> Result {
