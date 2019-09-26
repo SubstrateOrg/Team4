@@ -37,8 +37,8 @@ decl_module! {
 		pub fn create(origin) {
 			let sender = ensure_signed(origin)?;
 			let kitty_id = Self::next_kitty_id()?;
-			let dna = Self::random_value(&sender)?;
-			Self::insert_kitty(sender,kitty_id,Kitty(dna))?;
+			let dna = Self::random_value(&sender);
+			Self::insert_kitty(sender,kitty_id,Kitty(dna));
 		}
 
 		/// Breed kitties
@@ -51,7 +51,7 @@ decl_module! {
 		/// Transfer kitties
 		pub fn transfer(origin, to: T::AccountId, kitty_id: T::KittyIndex) -> Result {
             let sender = ensure_signed(origin)?;
-            let owner = Self::kitty_owner(kitty_id).ok_or("No owner for this kitty")?;
+            let owner = Self::kitty_owner(kitty_id);
             ensure!(owner == sender, "You do not own this kitty");
 
             Self::transfer_from(sender, to, kitty_id)?;
@@ -63,10 +63,11 @@ decl_module! {
 }
 
 fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
+	//TODO:二进制遍历
 	let mut new_dna = dna1;
-	for (i, (dna_2_element, r)) in dna2.as_ref().iter().zip(selector.as_ref().iter()).enumerate() {
+	for (i, r) in selector {
         if r == 0b0 {
-            new_dna.as_mut()[i] = *dna_2_element;
+            new_dna[i] = *dna2[i];
         }
     }
 	return new_dna;
@@ -131,19 +132,17 @@ impl<T: Trait> Module<T> {
 	fn transfer_from(from: T::AccountId, to: T::AccountId, kitty_id: T::KittyIndex) -> Result {
 
         let owned_kitties_count_from = Self::owned_kitties_count(&from);
-        let owned_kitties_index_from = Self::kitty_index(&from);
+        let owned_kitties_index_from = Self::kitty_index(kitty_id);
         let owned_kitties_count_to = Self::owned_kitties_count(&to);
 
-        let new_owned_kitties_count_to = owned_kitties_count_to.checked_add(1)
-            .ok_or("Transfer causes overflow of 'to' kitty balance")?;
+        let new_owned_kitties_count_to = owned_kitties_count_to + 1.into();
 
-        let new_owned_kitties_count_from = owned_kitties_count_from.checked_sub(1)
-            .ok_or("Transfer causes underflow of 'from' kitty balance")?;
+        let new_owned_kitties_count_from = owned_kitties_count_from - 1.into();
 
         <AccountIdKitty<T>>::insert(&kitty_id, &to);
 
         <OwnedKitties<T>>::remove((from.clone(), owned_kitties_index_from));
-        <OwnedKitties<T>>::insert((to.clone(), owned_kitties_count_to));
+        <OwnedKitties<T>>::insert((to.clone(), owned_kitties_count_to),kitty_id);
 
         <OwnedKittiesIndex<T>>::insert(&kitty_id, owned_kitties_count_to);
 
