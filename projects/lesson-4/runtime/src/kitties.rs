@@ -23,6 +23,11 @@ decl_storage! {
 		pub OwnedKitties get(owned_kitties): map (T::AccountId, T::KittyIndex) => T::KittyIndex;
 		/// Get number of kitties by account ID
 		pub OwnedKittiesCount get(owned_kitties_count): map T::AccountId => T::KittyIndex;
+		/// Get index of kitties
+		pub OwnedKittiesIndex get(kitty_index): map T::KittyIndex => T::KittyIndex;
+
+		/// Get AccountId By kittyIndex
+		pub AccountIdKitty get(kitty_owner): map T::KittyIndex => T::AccountId;
 	}
 }
 
@@ -31,27 +36,9 @@ decl_module! {
 		/// Create a new kitty
 		pub fn create(origin) {
 			let sender = ensure_signed(origin)?;
-
-			// 作业：重构create方法，避免重复代码
-
-			let kitty_id = Self::kitties_count();
-			if kitty_id == T::KittyIndex::max_value() {
-				return Err("Kitties count overflow");
-			}
-
-			// Generate a random 128bit value
-			let payload = (<system::Module<T>>::random_seed(), &sender, <system::Module<T>>::extrinsic_index(), <system::Module<T>>::block_number());
-			let dna = payload.using_encoded(blake2_128);
-
-			// Create and store kitty
-			let kitty = Kitty(dna);
-			<Kitties<T>>::insert(kitty_id, kitty);
-			<KittiesCount<T>>::put(kitty_id + 1.into());
-
-			// Store the ownership information
-			let user_kitties_id = Self::owned_kitties_count(&sender);
-			<OwnedKitties<T>>::insert((sender.clone(), user_kitties_id), kitty_id);
-			<OwnedKittiesCount<T>>::insert(sender, user_kitties_id + 1.into());
+			let kitty_id = Self::next_kitty_id()?;
+			let dna = Self::random_value(&sender)?;
+			Self::insert_kitty(sender,kitty_id,Kitty(dna))?;
 		}
 
 		/// Breed kitties
@@ -60,16 +47,29 @@ decl_module! {
 
 			Self::do_breed(sender, kitty_id_1, kitty_id_2)?;
 		}
+
+		/// Transfer kitties
+		pub fn transfer(origin, to: T::AccountId, kitty_id: T::KittyIndex) -> Result {
+            let sender = ensure_signed(origin)?;
+            let owner = Self::kitty_owner(kitty_id).ok_or("No owner for this kitty")?;
+            ensure!(owner == sender, "You do not own this kitty");
+
+            Self::transfer_from(sender, to, kitty_id)?;
+
+            Ok(())
+        }
+		
 	}
 }
 
 fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
-	// 作业：实现combine_dna
-	// 伪代码：
-	// selector.map_bits(|bit, index| if (bit == 1) { dna1 & (1 << index) } else { dna2 & (1 << index) })
-	// 注意 map_bits这个方法不存在。只要能达到同样效果，不局限算法
-	// 测试数据：dna1 = 0b11110000, dna2 = 0b11001100, selector = 0b10101010, 返回值 0b11100100
-	return dna1;
+	let mut new_dna = dna1;
+	for (i, (dna_2_element, r)) in dna2.as_ref().iter().zip(selector.as_ref().iter()).enumerate() {
+        if r == 0b0 {
+            new_dna.as_mut()[i] = *dna_2_element;
+        }
+    }
+	return new_dna;
 }
 
 impl<T: Trait> Module<T> {
@@ -91,10 +91,14 @@ impl<T: Trait> Module<T> {
 		<Kitties<T>>::insert(kitty_id, kitty);
 		<KittiesCount<T>>::put(kitty_id + 1.into());
 
+		// Store the kitty owner information
+		<AccountIdKitty<T>>::insert(kitty_id,owner.clone());
+
 		// Store the ownership information
 		let user_kitties_id = Self::owned_kitties_count(owner.clone());
 		<OwnedKitties<T>>::insert((owner.clone(), user_kitties_id), kitty_id);
 		<OwnedKittiesCount<T>>::insert(owner, user_kitties_id + 1.into());
+		<OwnedKittiesIndex<T>>::insert(kitty_id,user_kitties_id);
 	}
 
 	fn do_breed(sender: T::AccountId, kitty_id_1: T::KittyIndex, kitty_id_2: T::KittyIndex) -> Result {
@@ -123,4 +127,29 @@ impl<T: Trait> Module<T> {
 
 		Ok(())
 	}
+
+	fn transfer_from(from: T::AccountId, to: T::AccountId, kitty_id: T::KittyIndex) -> Result {
+
+        let owned_kitties_count_from = Self::owned_kitties_count(&from);
+        let owned_kitties_index_from = Self::kitty_index(&from);
+        let owned_kitties_count_to = Self::owned_kitties_count(&to);
+
+        let new_owned_kitties_count_to = owned_kitties_count_to.checked_add(1)
+            .ok_or("Transfer causes overflow of 'to' kitty balance")?;
+
+        let new_owned_kitties_count_from = owned_kitties_count_from.checked_sub(1)
+            .ok_or("Transfer causes underflow of 'from' kitty balance")?;
+
+        <AccountIdKitty<T>>::insert(&kitty_id, &to);
+
+        <OwnedKitties<T>>::remove((from.clone(), owned_kitties_index_from));
+        <OwnedKitties<T>>::insert((to.clone(), owned_kitties_count_to));
+
+        <OwnedKittiesIndex<T>>::insert(&kitty_id, owned_kitties_count_to);
+
+        <OwnedKittiesCount<T>>::insert(&from, new_owned_kitties_count_from);
+        <OwnedKittiesCount<T>>::insert(&to, new_owned_kitties_count_to);
+
+        Ok(())
+    }
 }
