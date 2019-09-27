@@ -19,6 +19,8 @@ decl_storage! {
 		/// Stores the total number of kitties. i.e. the next kitty index
 		pub KittiesCount get(kitties_count): T::KittyIndex;
 
+        /// Get owner ID by kitty index
+		pub Owner get(owner): map T::KittyIndex => T::AccountId;
 		/// Get kitty ID by account ID and user kitty index
 		pub OwnedKitties get(owned_kitties): map (T::AccountId, T::KittyIndex) => T::KittyIndex;
 		/// Get number of kitties by account ID
@@ -33,12 +35,10 @@ decl_module! {
 			let sender = ensure_signed(origin)?;
 
 			// 作业：重构create方法，避免重复代码
-
 			let kitty_id = Self::next_kitty_id()?;
 
 			// Generate a random 128bit value
-			let payload = (<system::Module<T>>::random_seed(), &sender, <system::Module<T>>::extrinsic_index(), <system::Module<T>>::block_number());
-			let dna = payload.using_encoded(blake2_128);
+			let dna = Self::random_value(&sender);
 
 			// Create and store kitty
 			let kitty = Kitty(dna);
@@ -59,6 +59,10 @@ decl_module! {
 
 			// Check whether there is exsiting keitty with current owner
 			let kitty = Self::kitty(kitty_id);
+			ensure!(kitty.is_some(),"Invalid Kitty");
+
+            let owner = Self::owner_of(kitty_id).ok_or("No owner for this kitty")?;
+			ensure!(owner == sender, "You do not own this kitty");
 
 			// Do the transfer
 			// - current owner remove the cat
