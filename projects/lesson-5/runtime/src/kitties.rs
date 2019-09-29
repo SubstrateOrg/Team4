@@ -80,6 +80,15 @@ decl_module! {
             kitty.price = price;
             <Kitties<T>>::insert(kitty_id, kitty);
         }
+
+        /// Buy kitty
+        pub fn buy_kitty(origin, owner: T::AccountId, kitty_id: T::KittyIndex) {
+            let sender = ensure_signed(origin)?;
+
+            ensure!(<Kitties<T>>::exists(kitty_id), "Not exist kitty_id");
+
+            Self::do_transfer(&owner, sender, kitty_id)?;
+        }
 	}
 }
 
