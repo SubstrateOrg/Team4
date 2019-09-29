@@ -10,7 +10,10 @@ pub trait Trait: balances::Trait {
 }
 
 #[derive(Encode, Decode)]
-pub struct Kitty(pub [u8; 16]);
+pub struct Kitty {
+    pub dna: [u8; 16],
+    pub price: u32,
+}
 
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, Eq))]
 #[derive(Encode, Decode)]
@@ -41,7 +44,10 @@ decl_module! {
 			let dna = Self::random_value(&sender);
 
 			// Create and store kitty
-			let kitty = Kitty(dna);
+			let kitty = Kitty {
+                dna: dna, 
+                price: Zero::zero()
+            };
 			Self::insert_kitty(&sender, kitty_id, kitty);
 		}
 
@@ -59,6 +65,20 @@ decl_module! {
             let sender = ensure_signed(origin)?;
 
             Self::do_transfer(&sender, to, kitty_id)?;
+        }
+
+        /// Set price
+        pub fn set_price(origin, kitty_id: T::KittyIndex, price: u32) {
+            let sender = ensure_signed(origin)?;
+
+            ensure!(<Kitties<T>>::exists(kitty_id), "Not exist kitty_id");
+
+            let kitty = <OwnedKitties<T>>::read(&sender, Some(kitty_id));
+            ensure!(kitty.prev != None, "Not own this kitty");
+
+            let mut kitty = Self::kitty(kitty_id).unwrap();
+            kitty.price = price;
+            <Kitties<T>>::insert(kitty_id, kitty);
         }
 	}
 }
@@ -168,8 +188,8 @@ impl<T: Trait> Module<T> {
 
 		let kitty_id = Self::next_kitty_id()?;
 
-		let kitty1_dna = kitty1.unwrap().0;
-		let kitty2_dna = kitty2.unwrap().0;
+        let kitty1_dna = kitty1.unwrap().dna;
+		let kitty2_dna = kitty2.unwrap().dna;
 
 		// Generate a random 128bit value
 		let selector = Self::random_value(&sender);
@@ -180,7 +200,7 @@ impl<T: Trait> Module<T> {
 			new_dna[i] = combine_dna(kitty1_dna[i], kitty2_dna[i], selector[i]);
 		}
 
-		Self::insert_kitty(sender, kitty_id, Kitty(new_dna));
+		Self::insert_kitty(sender, kitty_id, Kitty{dna: new_dna, price: Zero::zero()});
 
 		Ok(())
 	}
