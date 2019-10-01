@@ -221,6 +221,7 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
+    /// Transfer a kitty
     fn do_transfer(from: &T::AccountId, to: T::AccountId, kitty_id: T::KittyIndex) -> Result {
         ensure!(<Kitties<T>>::exists(kitty_id), "Not exist kitty_id");
 
