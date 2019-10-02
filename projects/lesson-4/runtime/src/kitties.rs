@@ -63,14 +63,7 @@ decl_module! {
 }
 
 fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
-	//TODO:二进制遍历
-	let mut new_dna = dna1;
-	for (i, r) in selector {
-        if r == 0b0 {
-            new_dna[i] = *dna2[i];
-        }
-    }
-	return new_dna;
+	((selector & dna1) | (!selector & dna2))
 }
 
 impl<T: Trait> Module<T> {
