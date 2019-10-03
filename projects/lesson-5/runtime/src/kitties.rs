@@ -1,5 +1,5 @@
 use support::{decl_module, decl_storage, ensure, StorageValue, StorageMap, dispatch::Result, Parameter, traits::Currency};
-use sr_primitives::traits::{SimpleArithmetic, Bounded, Member, Zero};
+use sr_primitives::traits::{SimpleArithmetic, Bounded, Member};
 use codec::{Encode, Decode};
 use runtime_io::blake2_128;
 use system::ensure_signed;
@@ -82,16 +82,16 @@ decl_module! {
 
             let mut kitty = Self::kitty(kitty_id);
 
-            let kitty_price = Self::kitty_price(kitty_id);
+            let kitty_price = Self::kitty_price(kitty_id).unwrap_or_else(|| 0.into());
             // ensure!(!kitty_price, "The cat you want to buy is not for sale");
             ensure!(kitty_price <= your_balance, "The cat you want to buy costs more than your free balance");
 
             <balances::Module<T> as Currency<_>>::transfer(&sender, &owner, kitty_price)?;
 
-            Self::transfer(origin, sender, kitty_id);
+            Self::transfer(origin, sender.clone(), kitty_id);
         
             <Owner<T>>::insert(kitty_id,sender);
-			<KittyPrice<T>>::insert(kitty_id, Zero::zero());
+			<KittyPrice<T>>::remove(kitty_id);
 			
 		}
 	}
