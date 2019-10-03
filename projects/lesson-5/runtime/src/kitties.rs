@@ -1,11 +1,11 @@
-use support::{decl_module, decl_storage, ensure, StorageValue, StorageMap, dispatch::Result, Parameter};
-use sr_primitives::traits::{SimpleArithmetic, Bounded, Member};
+use support::{decl_module, decl_storage, ensure, StorageValue, StorageMap, dispatch::Result, Parameter, traits::Currency};
+use sr_primitives::traits::{SimpleArithmetic, Bounded, Member, Zero};
 use codec::{Encode, Decode};
 use runtime_io::blake2_128;
 use system::ensure_signed;
 use rstd::result;
 
-pub trait Trait: system::Trait {
+pub trait Trait: balances::Trait {
 	type KittyIndex: Parameter + Member + SimpleArithmetic + Bounded + Default + Copy;
 }
 
@@ -30,7 +30,9 @@ decl_storage! {
 
 		pub OwnedKitties get(owned_kitties): map (T::AccountId, Option<T::KittyIndex>) => Option<KittyLinkedItem<T>>;
 
-		pub Owner get(kitty_owner): map T::KittyIndex => T::AccountId;
+		pub Owner get(kitty_owner): map T::KittyIndex => Option<T::AccountId>;
+
+		pub KittyPrice get(kitty_price): map T::KittyIndex => Option<T::Balance>;
 	}
 }
 
@@ -63,6 +65,34 @@ decl_module! {
 			let sender = ensure_signed(origin)?;
 
 			Self::do_transfer(sender, to, kitty_id)?;
+		}
+
+		pub fn offer(origin, kitty_id: T::KittyIndex, price: T::Balance) {
+			let sender = ensure_signed(origin)?;
+
+			Self::set_price(sender, kitty_id, price)?;
+		}
+
+		pub fn buy(origin, kitty_id: T::KittyIndex, your_balance: T::Balance) {
+			let sender = ensure_signed(origin)?;
+
+            ensure!(<Kitties<T>>::exists(kitty_id), "This cat does not exist");
+            let owner = Self::kitty_owner(kitty_id).ok_or("No owner for this kitty")?;
+            ensure!(owner != sender, "You can't buy your own cat");
+
+            let mut kitty = Self::kitty(kitty_id);
+
+            let kitty_price = Self::kitty_price(kitty_id);
+            // ensure!(!kitty_price, "The cat you want to buy is not for sale");
+            ensure!(kitty_price <= your_balance, "The cat you want to buy costs more than your free balance");
+
+            <balances::Module<T> as Currency<_>>::transfer(&sender, &owner, kitty_price)?;
+
+            Self::transfer(origin, sender, kitty_id);
+        
+            <Owner<T>>::insert(kitty_id,sender);
+			<KittyPrice<T>>::insert(kitty_id, Zero::zero());
+			
 		}
 	}
 }
@@ -193,7 +223,7 @@ impl<T: Trait> Module<T> {
 	fn do_transfer(sender: T::AccountId, to: T::AccountId, kitty_id: T::KittyIndex) -> Result {
 		let owner = Self::kitty_owner(kitty_id);
 
-		ensure!(owner == sender,"This kitty is not belong to the owner.");
+		ensure!(owner.map(|owner| owner == sender).unwrap_or(false) ,"This kitty is not belong to the owner.");
 
         <OwnedKitties<T>>::remove(&sender, kitty_id);
 		<OwnedKitties<T>>::append(&to, kitty_id);
@@ -201,6 +231,16 @@ impl<T: Trait> Module<T> {
 		
 		Ok(())
 }
+    
+	fn set_price(sender: T::AccountId, kitty_id: T::KittyIndex, price: T::Balance) -> Result {
+		let owner = Self::kitty_owner(kitty_id);
+
+		ensure!(owner.map(|owner| owner == sender).unwrap_or(false) ,"This kitty is not belong to the owner.");
+
+		<KittyPrice<T>>::insert(kitty_id, price);
+
+		Ok(())
+	}
 }
 
 /// tests for this module
