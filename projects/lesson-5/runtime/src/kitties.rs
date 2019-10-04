@@ -1,19 +1,16 @@
 use support::{decl_module, decl_storage, ensure, StorageValue, StorageMap, dispatch::Result, Parameter,traits::Currency};
-use sr_primitives::traits::{SimpleArithmetic, Bounded, Member,As,Zero};
+use sr_primitives::traits::{SimpleArithmetic, Bounded, Member};
 use codec::{Encode, Decode};
 use runtime_io::blake2_128;
 use system::ensure_signed;
 use rstd::result;
 
-pub trait Trait: system::Trait {
+pub trait Trait: balances::Trait {
 	type KittyIndex: Parameter + Member + SimpleArithmetic + Bounded + Default + Copy;
 }
 
-#[derive(Encode, Decode,Default,Clone,PartialEq)]
-pub struct Kitty<T>{
-	pub dna:[u8;16],
-	pub price:T::Balance,
-};
+#[derive(Encode, Decode)]
+pub struct Kitty(pub [u8;16]);
 
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, Eq))]
 #[derive(Encode, Decode)]
@@ -29,7 +26,9 @@ decl_storage! {
 		/// Stores the total number of kitties. i.e. the next kitty index
 		pub KittiesCount get(kitties_count): T::KittyIndex;
 		/// Get AccountId By kittyIndex
-		pub AccountIdKitty get(kitty_owner): map T::KittyIndex => T::AccountId;
+		pub KittyOwner get(kitty_owner): map T::KittyIndex => Option<T::AccountId>;
+		/// Get KittyPrice by kittyIndex
+		pub KittyPrice get(kitty_price): map T::KittyIndex => Option<T::Balance>;
 
 		pub OwnedKitties get(owned_kitties): map (T::AccountId, Option<T::KittyIndex>) => Option<KittyLinkedItem<T>>;
 	}
@@ -41,22 +40,16 @@ decl_module! {
 		pub fn create(origin) {
 			let sender = ensure_signed(origin)?;
 			let kitty_id = Self::next_kitty_id()?;
-
 			// Generate a random 128bit value
 			let dna = Self::random_value(&sender);
-
 			// Create and store kitty
-			let kitty = Kitty{
-				dna:dna,
-				price:<T::Balance as As<u64>>::sa(0)
-			};
+			let kitty = Kitty(dna);
 			Self::insert_kitty(&sender, kitty_id, kitty);
 		}
 
 		/// Breed kitties
 		pub fn breed(origin, kitty_id_1: T::KittyIndex, kitty_id_2: T::KittyIndex) {
 			let sender = ensure_signed(origin)?;
-
 			Self::do_breed(&sender, kitty_id_1, kitty_id_2)?;
 		}
 
@@ -64,31 +57,103 @@ decl_module! {
             let sender = ensure_signed(origin)?;
             let owner = Self::kitty_owner(kitty_id).ok_or("No owner for this kitty")?;
             ensure!(owner == sender, "You do not own this kitty");
-            Self::transfer_from(&sender, &to, kitty_id)?;
+            Self::transfer_from(&sender, &to, kitty_id);
         }
 
-        pub fn buy_kitty(origin, kitty_id: T::KittyIndex, max_price: T::Balance){
+        pub fn ask(origin,kitty_id: T::KittyIndex,price: Option<T::Balance>){
+        	let sender = ensure_signed(origin)?;
+        	ensure!(Self::kitty_owner(&kitty_id).map(|owner| owner == sender).unwrap_or(false),"Only owner can set price for kitty");
+        	if let Some(price) = price {
+        		<KittyPrice<T>>::insert(kitty_id,price);
+        	}else {
+        		<KittyPrice<T>>::remove(kitty_id);
+        	}
+
+        }
+
+        pub fn buy(origin, kitty_id: T::KittyIndex,max_price: T::Balance){
             let sender = ensure_signed(origin)?;
             ensure!(<Kitties<T>>::exists(kitty_id), "This cat does not exist");
             let owner = Self::kitty_owner(kitty_id).ok_or("No owner for this kitty")?;
             ensure!(owner != sender, "You can't buy your own cat");
-
-            let mut kitty = Self::kitty(kitty_id);
-
-            let kitty_price = kitty.price;
-            ensure!(!kitty_price.is_zero(), "The cat you want to buy is not for sale");
+            let kitty_price = Self::kitty_price(kitty_id);
+            ensure!(kitty_price.is_some(),"Kitty not for sale");
+            let kitty_price = kitty_price.unwrap();
             ensure!(kitty_price <= max_price, "The cat you want to buy costs more than your max price");
 
-            <balances::Module<T> as Currency<_>>::transfer(&sender, &owner, kitty_price)?;
+            <balances::Module<T> as Currency<T::AccountId>>::transfer(&sender, &owner, kitty_price)?;
 
-            Self::transfer_from(owner.clone(), sender.clone(), kitty_id);
+            Self::transfer_from(&owner, &sender, kitty_id);
 
-            //reset kitty price back to zero
-            kitty.price = <T::Balance as As<u64>>::sa(0);
-            <Kitties<T>>::insert(kitty_id, kitty);
-            <AccountIdKitty<T>>::insert(kitty_id,sender);
+            <KittyPrice<T>>::remove(kitty_id);
         }
 	}
+}
+
+fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
+	((selector & dna1) | (!selector & dna2))
+}
+
+impl<T: Trait> Module<T> {
+	fn random_value(sender: &T::AccountId) -> [u8; 16] {
+		let payload = (<system::Module<T>>::random_seed(), sender, <system::Module<T>>::extrinsic_index(), <system::Module<T>>::block_number());
+		payload.using_encoded(blake2_128)
+	}
+
+	fn next_kitty_id() -> result::Result<T::KittyIndex, &'static str> {
+		let kitty_id = Self::kitties_count();
+		if kitty_id == T::KittyIndex::max_value() {
+			return Err("Kitties count overflow");
+		}
+		Ok(kitty_id)
+	}
+
+	fn insert_owned_kitty(owner: &T::AccountId, kitty_id: T::KittyIndex) {
+		<OwnedKitties<T>>::append(owner,kitty_id);
+  	}
+
+	fn insert_kitty(owner: &T::AccountId, kitty_id: T::KittyIndex, kitty: Kitty) {
+		// Create and store kitty
+		<Kitties<T>>::insert(kitty_id, kitty);
+		<KittiesCount<T>>::put(kitty_id + 1.into());
+		// Store the kitty owner information
+		<KittyOwner<T>>::insert(kitty_id,owner);
+
+		Self::insert_owned_kitty(owner, kitty_id);
+	}
+
+	fn do_breed(sender: &T::AccountId, kitty_id_1: T::KittyIndex, kitty_id_2: T::KittyIndex) -> Result {
+		let kitty1 = Self::kitty(kitty_id_1);
+		let kitty2 = Self::kitty(kitty_id_2);
+
+		ensure!(kitty1.is_some(), "Invalid kitty_id_1");
+		ensure!(kitty2.is_some(), "Invalid kitty_id_2");
+		ensure!(kitty_id_1 != kitty_id_2, "Needs different parent");
+
+		let kitty_id = Self::next_kitty_id()?;
+
+		let kitty1_dna = kitty1.unwrap().0;
+		let kitty2_dna = kitty2.unwrap().0;
+
+		// Generate a random 128bit value
+		let selector = Self::random_value(&sender);
+		let mut new_dna = [0u8; 16];
+
+		// Combine parents and selector to create new kitty
+		for i in 0..kitty1_dna.len() {
+			new_dna[i] = combine_dna(kitty1_dna[i], kitty2_dna[i], selector[i]);
+		}
+
+		Self::insert_kitty(sender, kitty_id, Kitty(new_dna));
+
+		Ok(())
+	}
+
+	fn transfer_from(from: &T::AccountId, to: &T::AccountId, kitty_id: T::KittyIndex){       
+        <KittyOwner<T>>::insert(kitty_id, to.clone());
+        <OwnedKitties<T>>::remove(from, kitty_id);
+        <OwnedKitties<T>>::append(to, kitty_id);
+    }
 }
 
 impl<T: Trait> OwnedKitties<T> {
@@ -153,73 +218,6 @@ impl<T: Trait> OwnedKitties<T> {
   			Self::write(account, item.next, new_next);
 		}
 	}
-}
-
-fn combine_dna(dna1: u8, dna2: u8, selector: u8) -> u8 {
-	((selector & dna1) | (!selector & dna2))
-}
-
-impl<T: Trait> Module<T> {
-	fn random_value(sender: &T::AccountId) -> [u8; 16] {
-		let payload = (<system::Module<T>>::random_seed(), sender, <system::Module<T>>::extrinsic_index(), <system::Module<T>>::block_number());
-		payload.using_encoded(blake2_128)
-	}
-
-	fn next_kitty_id() -> result::Result<T::KittyIndex, &'static str> {
-		let kitty_id = Self::kitties_count();
-		if kitty_id == T::KittyIndex::max_value() {
-			return Err("Kitties count overflow");
-		}
-		Ok(kitty_id)
-	}
-
-	fn insert_owned_kitty(owner: &T::AccountId, kitty_id: T::KittyIndex) {
-		<OwnedKitties<T>>::append(owner,kitty_id);
-  	}
-
-	fn insert_kitty(owner: &T::AccountId, kitty_id: T::KittyIndex, kitty: Kitty) {
-		// Create and store kitty
-		<Kitties<T>>::insert(kitty_id, kitty);
-		<KittiesCount<T>>::put(kitty_id + 1.into());
-		// Store the kitty owner information
-		<AccountIdKitty<T>>::insert(kitty_id,*owner);
-
-		Self::insert_owned_kitty(owner, kitty_id);
-	}
-
-	fn do_breed(sender: &T::AccountId, kitty_id_1: T::KittyIndex, kitty_id_2: T::KittyIndex) -> Result {
-		let kitty1 = Self::kitty(kitty_id_1);
-		let kitty2 = Self::kitty(kitty_id_2);
-
-		ensure!(kitty1.is_some(), "Invalid kitty_id_1");
-		ensure!(kitty2.is_some(), "Invalid kitty_id_2");
-		ensure!(kitty_id_1 != kitty_id_2, "Needs different parent");
-
-		let kitty_id = Self::next_kitty_id()?;
-
-		let kitty1_dna = kitty1.dna;
-		let kitty2_dna = kitty2.dna;
-
-		// Generate a random 128bit value
-		let selector = Self::random_value(&sender);
-		let mut new_dna = [0u8; 16];
-
-		// Combine parents and selector to create new kitty
-		for i in 0..kitty1_dna.len() {
-			new_dna[i] = combine_dna(kitty1_dna[i], kitty2_dna[i], selector[i]);
-		}
-
-		Self::insert_kitty(sender, kitty_id, Kitty(new_dna));
-
-		Ok(())
-	}
-
-	fn transfer_from(from: &T::AccountId, to: &T::AccountId, kitty_id: T::KittyIndex) -> Result {       
-        <AccountIdKitty<T>>::insert(kitty_id, to.clone());
-        <OwnedKitties<T>>::remove(from, kitty_id);
-        <OwnedKitties<T>>::append(to, kitty_id);
-        Ok(())
-    }
 }
 
 /// tests for this module
