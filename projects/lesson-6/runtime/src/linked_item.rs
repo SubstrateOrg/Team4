@@ -36,7 +36,6 @@ impl<Storage, Key, Value> LinkedList<Storage, Key, Value> where
  	}
 
     pub fn append(key: &Key, value: Value) {
-        // 作业：实现 append
 		let head = Self::read_head(key);
 		let new_head = LinkedItem {
 			prev: Some(value),
@@ -60,7 +59,6 @@ impl<Storage, Key, Value> LinkedList<Storage, Key, Value> where
 	}
 
     pub fn remove(key: &Key, value: Value) {
-        // 作业：实现 remove
 		if let Some(item) = Storage::get(&(key.clone(), Some(value))) {
 			let prev = Self::read(key, item.prev);
 			let new_prev = LinkedItem {
