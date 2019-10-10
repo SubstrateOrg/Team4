@@ -42,43 +42,40 @@ impl<Storage, Key, Value> LinkedList<Storage, Key, Value> where
 			prev: Some(value),
 			next: head.next,
 		};
-
+		
 		Self::write_head(key, new_head);
-
+		
 		let prev = Self::read(key, head.prev);
 		let new_prev = LinkedItem {
 			prev: prev.prev,
 			next: Some(value),
 		};
+		
 		Self::write(key, head.prev, new_prev);
-
 		let item = LinkedItem {
 			prev: head.prev,
 			next: None,
 		};
 		Self::write(key, Some(value), item);
-    }
+	}
 
     pub fn remove(key: &Key, value: Value) {
         // 作业：实现 remove
 		if let Some(item) = Storage::get(&(key.clone(), Some(value))) {
 			let prev = Self::read(key, item.prev);
 			let new_prev = LinkedItem {
- 				prev: prev.prev,
- 				next: item.next,
- 			};
-
-			Self::write(key, item.prev, new_prev);
-
-			let next = Self::read(key, item.next);
- 			let new_next = LinkedItem {
- 				prev: item.prev,
- 				next: next.next,
- 			};
-
-  			Self::write(key, item.next, new_next);
+				prev: prev.prev,
+				next: item.next,
+			};
 			
+			Self::write(key, item.prev, new_prev);
+			let next = Self::read(key, item.next);
+			let new_next = LinkedItem {
+				prev: item.prev,
+				next: next.next,
+			};
+			Self::write(key, item.next, new_next);
 			Storage::remove(&(key.clone(), Some(value)));
 		}
-    }
+	}
 }
