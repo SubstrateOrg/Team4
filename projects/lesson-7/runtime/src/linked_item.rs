@@ -1,9 +1,12 @@
 use support::{StorageMap, Parameter};
 use sr_primitives::traits::Member;
 use codec::{Encode, Decode};
+use support::dispatch::Output;
+use support::dispatch::Input;
+use codec::Error;
 
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, Eq))]
-#[derive(Encode, Decode)]
+//#[derive(Encode, Decode)]
 pub struct LinkedItem<Value> {
 	pub prev: Option<Value>,
 	pub next: Option<Value>,
