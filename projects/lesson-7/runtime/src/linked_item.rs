@@ -1,6 +1,6 @@
 use support::{StorageMap, Parameter};
 use sr_primitives::traits::Member;
-use codec::{Input, Output, Error};
+use codec::{Encode, Encode, Input, Output, Error};
 
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, Eq))]
 // #[derive(Encode, Decode)]
