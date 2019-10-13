@@ -1,6 +1,6 @@
 use support::{StorageMap, Parameter};
 use sr_primitives::traits::Member;
-use codec::{Encode, Encode, Input, Output, Error};
+use codec::{Encode, Decode, Input, Output, Error};
 
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, Eq))]
 // #[derive(Encode, Decode)]
@@ -17,7 +17,7 @@ impl <Value> Encode for LinkedItem<Value> where Value:Encode {
 }
 
 impl <Value> Decode for LinkedItem<Value> where Value:Decode {
-	fn decode<I: Input>(input: &mut I) -> core::result::Result<Self, codec::Error> {
+	fn decode<I: Input>(input: &mut I) -> core::result::Result<Self, Error> {
 		Ok(LinkedItem {
 			prev: Decode::decode(input)?,
 			next: Decode::decode(input)?,

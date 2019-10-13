@@ -3,7 +3,7 @@ use support::{
 	Parameter, traits::Currency
 };
 use sr_primitives::traits::{SimpleArithmetic, Bounded, Member};
-use codec::{Encode, Encode, Input, Output, Error};
+use codec::{Encode, Decode, Input, Output, Error};
 use runtime_io::blake2_128;
 use system::ensure_signed;
 use rstd::result;
@@ -27,7 +27,7 @@ impl Encode for Kitty {
 }
 
 impl Decode for Kitty {
-	fn decode<I: Input>(input: &mut I) -> core::result::Result<Self, codec::Error> {
+	fn decode<I: Input>(input: &mut I) -> core::result::Result<Self, Error> {
 		let decoded = Decode::decode(input)?;
 		Ok(Kitty(decoded))
 	}
